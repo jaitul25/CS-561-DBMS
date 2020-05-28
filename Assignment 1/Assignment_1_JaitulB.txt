@@ -1,0 +1,153 @@
+Name : Jaitul Bharodiya
+
+DBMS Assignment 1 
+
+Query 1 :
+
+with Q1 as
+(
+select cust, min(quant) min_q, max(quant) max_q, avg(quant) avg_q
+from sales
+	group by cust
+),
+Q2 as
+(
+select Q1.cust,Q1.min_q,s.prod,s.month,s.day,s.year,s.state,Q1.max_q,Q1.avg_q
+	from Q1, sales s
+	where Q1.cust = s.cust
+	and Q1.min_q = s.quant
+)
+select Q2.cust,Q2.min_q,Q2.prod,Q2.month,Q2.day,Q2.year,Q2.state,Q2.max_q,s.prod,s.month,s.day,s.year,s.state,Q2.avg_q
+	from Q2, sales s
+	where Q2.cust = s.cust
+	and Q2.max_q = s.quant
+
+
+Query 2 :
+
+with 
+months as 
+(select generate_series as month 
+ from generate_series(1, 12)),
+
+aggsale as
+(select month, day, sum(quant) 
+ from months left join sales using (month) 
+ group by month, day), 
+ 
+mostpop as 
+(select distinct on (month) month, day, sum 
+ from aggsale 
+ order by month, sum desc), 
+ 
+leastpop as 
+(select distinct on (month) month, day, sum 
+ from aggsale 
+ order by month, sum asc)
+
+select mostpop.month, mostpop.day as most_profit_day, mostpop.sum as most_profit_total, leastpop.day as least_profit_day, leastpop.sum as least_profit_total 
+from mostpop join leastpop using (month)
+
+
+Query 3 :
+
+with t1 as
+(select distinct prod,month
+from sales
+order by prod,month),
+
+t2 as
+(select t1.prod,t1.month,sum(sales.quant)
+from t1
+left join sales using (prod,month)
+group by t1.prod,t1.month
+order by t1.prod,t1.month),
+
+
+t3 as
+(select t2.prod, max(t2.sum), min(t2.sum)
+from t2 group by t2.prod),
+
+t4 as
+(select t2.prod,t2.month as most_fav_month 
+from t3,t2 where t3.max = t2.sum),
+
+t5 as
+(select t2.prod,t2.month as least_fav_month 
+from t3,t2 where t3.min = t2.sum)
+
+select t4.prod,t4.most_fav_month,t5.least_fav_month
+from t4,t5
+where t4.prod = t5.prod 
+order by prod
+
+
+Query 4 :
+
+with t1 as
+(select cust, prod,sum(quant),avg(quant),count(quant)
+from sales
+group by prod,cust),
+
+t2 as
+(select cust, prod, avg(quant) Q1
+from sales
+where month in (1,2,3)
+group by cust,prod),
+
+t3 as
+(select cust, prod, avg(quant) Q2
+from sales
+where month in (4,5,6)
+group by cust,prod),
+
+t4 as
+(select cust, prod, avg(quant) Q3
+from sales
+where month in (7,8,9)
+group by cust,prod),
+
+t5 as
+(select cust, prod, avg(quant) Q4
+from sales
+where month in (10,11,12)
+group by cust,prod)
+
+select t1.cust,t1.prod,t2.Q1,t3.Q2,t4.Q3,t5.Q4,t1.avg,t1.sum as total,t1.count 
+from t1 left join t2 on t2.cust=t1.cust and t2.prod=t1.prod
+left join t3 on t3.cust=t1.cust and t3.prod=t1.prod
+left join t4 on t4.cust=t1.cust and t4.prod=t1.prod
+left join t5 on t5.cust=t1.cust and t5.prod=t1.prod
+
+
+Query 5 :
+
+with
+
+mix as 
+(select cust, prod, max(quant) as max
+from sales 
+group by cust, prod,state),
+
+nymax as 
+(select cust as customer, prod as product, quant as quantity, day as nyday, month as nymonth, year as nyyear 
+from sales 
+where state='NY'),
+ 
+njmax as 
+(select cust as customer, prod as product, quant as quantity, day as njday, month as njmonth, year as njyear 
+from sales 
+where state='NJ'),
+
+ctmax as 
+(select cust as customer, prod as product, quant as quantity, day as ctday, month as ctmonth, year as ctyear 
+from sales 
+where state='CT'),
+
+ny as (select ny.customer, ny.product, ny.quantity as ny_max, concat(ny.nymonth,'/',ny.nyday,'/',ny.nyyear) as nymax_date from (mix join nymax on mix.cust=nymax.customer and mix.prod=nymax.product and mix.max=nymax.quantity) as ny),
+nj as (select nj.customer, nj.product, nj.quantity as nj_max, concat(nj.njmonth,'/',nj.njday,'/',nj.njyear) as njmax_date from (mix join njmax on mix.cust=njmax.customer and mix.prod=njmax.product and mix.max=njmax.quantity) as nj),
+ct as (select ct.customer, ct.product, ct.quantity as ct_max, concat(ct.ctmonth,'/',ct.ctday,'/',ct.ctyear) as ctmax_date from (mix join ctmax on mix.cust=ctmax.customer and mix.prod=ctmax.product and mix.max=ctmax.quantity) as ct)
+
+select * 
+from ((ny natural full outer join nj) natural full outer join ct)
+where ny.ny_max >nj.nj_max or ny.ny_max > ct.ct_max
